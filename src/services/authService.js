@@ -10,8 +10,26 @@ const logger                = require('../utils/logger');
 const { BCRYPT_SALT_ROUNDS, MAX_LOGIN_ATTEMPTS, LOCK_DURATION_MINUTES } = require('../config/constants');
 
 // ─── Registro de tutor ───────────────────────────────────────────────────────
-const register = async ({ username, email, password, displayName }) => {
-  // Validar fortaleza de contraseña (RF-02)
+const register = async ({ username, email, password, displayName, role }) => {
+
+  // ── RF-01: Bloquear registro directo como child ───────────────────────────
+  if (role === 'child') {
+    const err = new Error(
+      'RF-01 VIOLACIÓN: Los niños no pueden registrarse directamente. ' +
+      'Deben ser creados por un tutor autenticado desde POST /api/v1/children'
+    );
+    err.status = 403;
+    throw err;
+  }
+
+  // ── RF-01: Bloquear registro como admin desde endpoint público ────────────
+  if (role === 'admin') {
+    const err = new Error('No puedes registrarte como administrador');
+    err.status = 403;
+    throw err;
+  }
+
+  // ── RF-02: Validar fortaleza de contraseña ────────────────────────────────
   validatePassword(password);
 
   // Verificar que no exista el username o email
@@ -84,10 +102,10 @@ const login = async ({ username, password, ip }) => {
   // Verificar credenciales
   const valid = account && await bcrypt.compare(password, account.password_hash);
 
-  if (!valid || !account.is_active) {
-    // Registrar intento fallido
+  if (!valid || !account?.is_active) {
+    // ── RF-02: Registrar intento fallido y bloquear al llegar al límite ──────
     if (account) {
-      const attempts = (account.failed_login_attempts || 0) + 1;
+      const attempts  = (account.failed_login_attempts || 0) + 1;
       const lockUntil = attempts >= MAX_LOGIN_ATTEMPTS
         ? new Date(Date.now() + LOCK_DURATION_MINUTES * 60 * 1000)
         : null;
@@ -101,7 +119,24 @@ const login = async ({ username, password, ip }) => {
 
       logger.warn('[AUTH] Intento fallido de login', {
         accountId: account.account_id, attempts, ip,
+        bloqueado: lockUntil !== null,
       });
+
+      if (lockUntil) {
+        const err = new Error(
+          `Cuenta bloqueada por ${LOCK_DURATION_MINUTES} minutos ` +
+          `después de ${MAX_LOGIN_ATTEMPTS} intentos fallidos.`
+        );
+        err.status = 429;
+        throw err;
+      }
+
+      const restantes = MAX_LOGIN_ATTEMPTS - attempts;
+      const err = new Error(
+        `Credenciales inválidas. Te quedan ${restantes} intento(s) antes del bloqueo.`
+      );
+      err.status = 401;
+      throw err;
     }
 
     const err = new Error('Credenciales inválidas');
@@ -173,6 +208,14 @@ const changePassword = async (accountId, { currentPassword, newPassword }) => {
   const valid = await bcrypt.compare(currentPassword, account.password_hash);
   if (!valid) {
     const err = new Error('La contraseña actual es incorrecta');
+    err.status = 400;
+    throw err;
+  }
+
+  // ── RF-02: Bloquear reutilización de la misma contraseña ─────────────────
+  const samePassword = await bcrypt.compare(newPassword, account.password_hash);
+  if (samePassword) {
+    const err = new Error('La nueva contraseña no puede ser igual a la actual');
     err.status = 400;
     throw err;
   }

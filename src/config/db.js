@@ -10,10 +10,10 @@ require('dotenv').config();
 // ─── Configuración del pool ──────────────────────────────────────────────────
 const pool = new Pool({
   host:               process.env.DB_HOST     || 'localhost',
-  port:               parseInt(process.env.DB_PORT) || 5432,
+  port:               parseInt(process.env.DB_PORT) || 5434,
   database:           process.env.DB_NAME     || 'healthkids_db',
   user:               process.env.DB_USER     || 'postgres',
-  password:           process.env.DB_PASSWORD || '',
+  password:           process.env.DB_PASSWORD || '0404',
   min:                parseInt(process.env.DB_POOL_MIN)            || 2,
   max:                parseInt(process.env.DB_POOL_MAX)            || 10,
   idleTimeoutMillis:  parseInt(process.env.DB_IDLE_TIMEOUT)        || 30000,

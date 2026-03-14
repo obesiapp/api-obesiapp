@@ -1,17 +1,12 @@
 // src/routes/health.routes.js
-// RF-05 — Endpoint de salud del sistema para monitoreo con PM2 / cron
+// RF-05 — Health check con detección inmediata de caída de BD
 'use strict';
 
-const { Router }         = require('express');
-const { testConnection } = require('../config/db');
+const { Router } = require('express');
+const { pool }   = require('../config/db');
 
 const router = Router();
 
-/**
- * @route  GET /health
- * @desc   Health check del sistema y conexión a BD
- * @access Público (sin autenticación — para monitoreo externo)
- */
 router.get('/', async (req, res) => {
   const status = {
     service:   'healthkids-api',
@@ -24,12 +19,28 @@ router.get('/', async (req, res) => {
     env:       process.env.NODE_ENV,
   };
 
+  // ── RF-05: Forzar conexión nueva con timeout corto ────────────────────────
+  let client;
   try {
-    await testConnection();
+    // Obtener cliente directamente del pool (no usa caché)
+    client = await Promise.race([
+      pool.connect(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout de conexión a BD')), 3000)
+      )
+    ]);
+
+    // Ejecutar query real para confirmar que la BD responde
+    await client.query('SELECT 1');
     status.db = 'ok';
+
   } catch (err) {
     status.db     = 'error';
     status.status = 'degraded';
+    status.db_error = err.message;   // solo en dev, quitar en producción
+  } finally {
+    // Siempre liberar el cliente aunque falle
+    if (client) client.release(true);  // true = destruir la conexión del pool
   }
 
   const httpStatus = status.status === 'ok' ? 200 : 503;

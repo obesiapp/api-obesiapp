@@ -1,0 +1,42 @@
+# ─── Node ────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── Variables de entorno (¡NUNCA commitear!) ────────────
+.env
+.env.local
+.env.*.local
+
+# ─── Logs ────────────────────────────────────────────────
+logs/
+*.log
+/var/log/
+
+# ─── Certificados TLS ────────────────────────────────────
+*.pem
+*.key
+*.crt
+*.p12
+/etc/ssl/
+
+# ─── Backups ─────────────────────────────────────────────
+/var/backups/
+*.sql.gz
+*.sql.gz.sha256
+
+# ─── Sistema operativo ───────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── IDE ─────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ─── PM2 ─────────────────────────────────────────────────
+.pm2/
+
+# ─── Cobertura de tests ───────────────────────────────────
+coverage/

@@ -8,6 +8,7 @@ const authRoutes         = require('./auth.routes');
 const childRoutes        = require('./child.routes');
 const catalogRoutes      = require('./catalog.routes');
 const notificationRoutes = require('./notification.routes');
+const adminRoutes        = require('./admin.routes');
 
 const router = Router();
 
@@ -15,6 +16,11 @@ router.use('/auth',          authRoutes);
 router.use('/children',      childRoutes);
 router.use('/catalog',       catalogRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/admin',         adminRoutes);
+
+const adminRoutes = require('./admin.routes');
+
+router.use('/admin', adminRoutes);   
 
 // Ruta raíz del API — info básica
 router.get('/', (req, res) => {

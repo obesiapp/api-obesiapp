@@ -18,9 +18,7 @@ router.use('/catalog',       catalogRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/admin',         adminRoutes);
 
-const adminRoutes = require('./admin.routes');
-
-router.use('/admin', adminRoutes);   
+  
 
 // Ruta raíz del API — info básica
 router.get('/', (req, res) => {

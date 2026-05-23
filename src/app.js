@@ -25,7 +25,7 @@ app.use(helmet.hsts({ maxAge: 31_536_000, includeSubDomains: true }));
 // ─── 2. CORS — solo orígenes autorizados ─────────────────────────────────────
 const allowedOrigins = process.env.NODE_ENV === 'production'
   ? (process.env.CORS_ORIGINS_PROD || '').split(',')
-  : [process.env.CORS_ORIGIN || 'proyecto-osb-app.vercel.app'];
+  : [process.env.CORS_ORIGIN || 'https://proyecto-osb-app.vercel.app'];
 
 app.use(cors({
   origin: (origin, cb) => {

@@ -9,6 +9,7 @@ const childRoutes        = require('./child.routes');
 const catalogRoutes      = require('./catalog.routes');
 const notificationRoutes = require('./notification.routes');
 const adminRoutes        = require('./admin.routes');
+const mlRoutes           = require('./ml.routes');
 
 const router = Router();
 
@@ -17,7 +18,7 @@ router.use('/children',      childRoutes);
 router.use('/catalog',       catalogRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/admin',         adminRoutes);
-
+router.use('/ml',            mlRoutes);
   
 
 // Ruta raíz del API — info básica

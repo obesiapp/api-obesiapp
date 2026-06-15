@@ -1,0 +1,11 @@
+screen_time_minutes,habits_completed,challenges_completed,streak_days,risk
+180,1,0,1,2
+150,2,1,2,2
+120,3,2,4,1
+90,4,3,6,1
+60,5,4,8,0
+45,5,5,10,0
+200,0,0,0,2
+170,1,1,1,2
+100,4,3,7,1
+30,5,5,12,0

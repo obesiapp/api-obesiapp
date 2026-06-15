@@ -8,17 +8,30 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 // ─── Configuración del pool ──────────────────────────────────────────────────
-const pool = new Pool({
-  host:               process.env.DB_HOST     || 'localhost',
-  port:               parseInt(process.env.DB_PORT) || 5434,
-  database:           process.env.DB_NAME     || 'healthkids_db',
-  user:               process.env.DB_USER     || 'postgres',
-  password:           process.env.DB_PASSWORD || '0404',
-  min:                parseInt(process.env.DB_POOL_MIN)            || 2,
-  max:                parseInt(process.env.DB_POOL_MAX)            || 10,
-  idleTimeoutMillis:  parseInt(process.env.DB_IDLE_TIMEOUT)        || 30000,
-  connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT) || 5000,
-});
+const isProduction = process.env.NODE_ENV === 'production';
+
+const pool = new Pool(
+  process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: isProduction ? { rejectUnauthorized: false } : false,
+        min: parseInt(process.env.DB_POOL_MIN) || 2,
+        max: parseInt(process.env.DB_POOL_MAX) || 10,
+        idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT) || 30000,
+        connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT) || 5000,
+      }
+    : {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT) || 5434,
+        database: process.env.DB_NAME || 'healthkids_db',
+        user: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD || '0404',
+        min: parseInt(process.env.DB_POOL_MIN) || 2,
+        max: parseInt(process.env.DB_POOL_MAX) || 10,
+        idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT) || 30000,
+        connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT) || 5000,
+      }
+);
 
 // ─── Fijar el search_path al esquema healthkids en cada nueva conexión ───────
 pool.on('connect', (client) => {

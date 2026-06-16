@@ -1,45 +1,55 @@
 from fastapi import FastAPI
+from pydantic import BaseModel
 import joblib
 import pandas as pd
 
 app = FastAPI(title="ObesiApp ML Service")
 
-model = joblib.load("obesity_rf_model.pkl")
+model = joblib.load("obesiapp_rf_model.pkl")
+
+class RiskInput(BaseModel):
+    age: int
+    gender: str
+    bmi: float
 
 @app.get("/")
 def home():
     return {
         "service": "ObesiApp Machine Learning",
-        "status": "running"
+        "status": "running",
+        "model": "Random Forest - NHANES Child Obesity"
     }
 
 @app.post("/predict-risk")
-def predict(data: dict):
+def predict(data: RiskInput):
 
     features = pd.DataFrame([{
-        "screen_time_minutes": data["screen_time_minutes"],
-        "habits_completed": data["habits_completed"],
-        "challenges_completed": data["challenges_completed"],
-        "streak_days": data["streak_days"]
+        "age": data.age,
+        "gender": data.gender.lower(),
+        "bmi": data.bmi
     }])
 
     prediction = model.predict(features)[0]
+    probabilities = model.predict_proba(features)[0]
+    classes = model.classes_
 
-    risks = {
-        0: "bajo",
-        1: "medio",
-        2: "alto"
-    }
+    confidence = float(max(probabilities))
 
-    risk = risks[int(prediction)]
-
-    recommendation = {
-        "bajo": "Mantener hábitos saludables.",
-        "medio": "Incrementar actividad física y mejorar alimentación.",
-        "alto": "Reducir tiempo de pantalla y aumentar actividad física."
+    recommendations = {
+        "bajo": "Mantener hábitos saludables y continuar con actividad física regular.",
+        "medio": "Reforzar alimentación saludable, actividad física e hidratación.",
+        "alto": "Se recomienda reforzar actividad física, mejorar hábitos alimenticios y dar seguimiento con el tutor."
     }
 
     return {
-        "risk": risk,
-        "recommendation": recommendation[risk]
+        "risk": prediction,
+        "confidence": round(confidence, 2),
+        "recommendation": recommendations.get(
+            prediction,
+            "Mantener seguimiento de hábitos saludables."
+        ),
+        "probabilities": {
+            str(label): round(float(prob), 4)
+            for label, prob in zip(classes, probabilities)
+        }
     }

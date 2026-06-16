@@ -40,3 +40,15 @@ Thumbs.db
 
 # ─── Cobertura de tests ───────────────────────────────────
 coverage/
+
+# ─── Python / FastAPI ─────────────────────────────
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+data/
+models/
+# Python
+__pycache__/
+*.pyc
+venv/

@@ -14,7 +14,7 @@ const pool = new Pool(
   process.env.DATABASE_URL
     ? {
         connectionString: process.env.DATABASE_URL,
-        ssl: isProduction ? { rejectUnauthorized: false } : false,
+ssl: { rejectUnauthorized: false },
         min: parseInt(process.env.DB_POOL_MIN) || 2,
         max: parseInt(process.env.DB_POOL_MAX) || 10,
         idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT) || 30000,

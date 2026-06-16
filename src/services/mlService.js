@@ -4,46 +4,27 @@ const db = require('../config/db');
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
 
-const getChildRisk = async (childId) => {
-  const { rows } = await db.query(
-    `
-    SELECT
-      cp.child_id,
-      cp.age_range,
-      cp.current_xp,
-      cp.streak_days,
-      cp.current_level_id,
-      COALESCE(ds.screen_time_minutes, 0) AS screen_time_minutes,
-      COALESCE(ds.habits_completed, 0) AS habits_completed,
-      COALESCE(ds.habits_total, 1) AS habits_total,
-      COALESCE(ds.challenges_completed, 0) AS challenges_completed
-    FROM healthkids.child_profiles cp
-    LEFT JOIN healthkids.daily_summary ds
-      ON ds.child_id = cp.child_id
-    WHERE cp.child_id = $1
-    ORDER BY ds.summary_date DESC
-    LIMIT 1
-    `,
-    [childId]
-  );
+const calculateBMI = (weightKg, heightCm) => {
+  const heightM = Number(heightCm) / 100;
 
-  if (rows.length === 0) {
-    const error = new Error('Niño no encontrado');
-    error.status = 404;
+  if (!weightKg || !heightCm || heightM <= 0) {
+    const error = new Error('Peso y estatura son obligatorios y deben ser válidos');
+    error.status = 400;
     throw error;
   }
 
-  const child = rows[0];
+  return Number((Number(weightKg) / (heightM * heightM)).toFixed(2));
+};
+
+const createHealthMetric = async (childId, data) => {
+  const { age, gender, weight_kg, height_cm } = data;
+
+  const bmi = calculateBMI(weight_kg, height_cm);
 
   const payload = {
-    age_range: child.age_range,
-    current_xp: Number(child.current_xp),
-    streak_days: Number(child.streak_days),
-    current_level_id: Number(child.current_level_id),
-    screen_time_minutes: Number(child.screen_time_minutes),
-    habits_completed: Number(child.habits_completed),
-    habits_total: Number(child.habits_total),
-    challenges_completed: Number(child.challenges_completed)
+    age: Number(age),
+    gender: String(gender).toLowerCase(),
+    bmi
   };
 
   const response = await fetch(`${ML_SERVICE_URL}/predict-risk`, {
@@ -62,14 +43,62 @@ const getChildRisk = async (childId) => {
 
   const prediction = await response.json();
 
+  const { rows } = await db.query(
+    `
+    INSERT INTO healthkids.health_metrics (
+      child_id,
+      age,
+      gender,
+      weight_kg,
+      height_cm,
+      bmi,
+      risk_level,
+      prediction_confidence
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    RETURNING *
+    `,
+    [
+      childId,
+      Number(age),
+      String(gender).toLowerCase(),
+      Number(weight_kg),
+      Number(height_cm),
+      bmi,
+      prediction.risk,
+      prediction.confidence
+    ]
+  );
+
   return {
-    childId,
-    inputData: payload,
-    model: 'Random Forest',
+    metric: rows[0],
+    model: 'Random Forest - NHANES Child Obesity',
     prediction
   };
 };
 
+const getLatestHealthMetric = async (childId) => {
+  const { rows } = await db.query(
+    `
+    SELECT *
+    FROM healthkids.health_metrics
+    WHERE child_id = $1
+    ORDER BY created_at DESC
+    LIMIT 1
+    `,
+    [childId]
+  );
+
+  if (rows.length === 0) {
+    const error = new Error('No hay evaluación de salud registrada para este niño');
+    error.status = 404;
+    throw error;
+  }
+
+  return rows[0];
+};
+
 module.exports = {
-  getChildRisk
+  createHealthMetric,
+  getLatestHealthMetric
 };

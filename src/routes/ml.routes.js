@@ -8,6 +8,9 @@ const router = Router();
 
 router.use(verifyToken);
 
-router.get('/children/:childId/risk', mlController.getRisk);
+router.post('/children/:childId/health-metrics', mlController.createHealthMetric);
+
+router.get('/children/:childId/health-metrics/latest', mlController.getLatestHealthMetric);
+
 
 module.exports = router;

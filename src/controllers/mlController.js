@@ -2,15 +2,31 @@
 
 const mlService = require('../services/mlService');
 
-const getRisk = async (req, res, next) => {
+const createHealthMetric = async (req, res, next) => {
   try {
     const { childId } = req.params;
 
-    const result = await mlService.getChildRisk(childId);
+    const result = await mlService.createHealthMetric(childId, req.body);
+
+    res.status(201).json({
+      ok: true,
+      message: 'Evaluación de salud registrada y clasificada correctamente',
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getLatestHealthMetric = async (req, res, next) => {
+  try {
+    const { childId } = req.params;
+
+    const result = await mlService.getLatestHealthMetric(childId);
 
     res.status(200).json({
       ok: true,
-      message: 'Clasificación de riesgo generada correctamente',
+      message: 'Última evaluación de salud encontrada',
       data: result
     });
   } catch (error) {
@@ -19,5 +35,6 @@ const getRisk = async (req, res, next) => {
 };
 
 module.exports = {
-  getRisk
+  createHealthMetric,
+  getLatestHealthMetric
 };

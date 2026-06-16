@@ -19,6 +19,10 @@ router.use('/catalog',       catalogRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/admin',         adminRoutes);
 router.use('/ml',            mlRoutes);
+router.use(
+'/quiz',
+require('./quiz.routes')
+);
   
 
 // Ruta raíz del API — info básica

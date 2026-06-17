@@ -364,3 +364,7 @@ module.exports = {
   // patrones diarios 
   analyzeDailyPattern
 };
+
+
+
+

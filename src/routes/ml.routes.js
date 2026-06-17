@@ -45,4 +45,17 @@ router.post(
   mlController.saveQuizResult
 );
 
+
+/**
+ * =====================================
+ * ANÁLISIS DE PATRONES 
+ * =====================================
+ */
+
+// Analizar el resumen diario con el modelo de clustering
+router.post(
+  '/daily-summary/:summaryId/analyze-pattern',
+  mlController.analyzeDailyPattern
+);
+
 module.exports = router;

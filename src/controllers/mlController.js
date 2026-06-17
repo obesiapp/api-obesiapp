@@ -146,6 +146,44 @@ const saveQuizResult = async (
 
 
 // =====================================
+// ANÁLISIS DE PATRONES 
+// =====================================
+
+const analyzeDailyPattern = async (
+  req,
+  res,
+  next
+) => {
+
+  try {
+
+    // Se extrae el ID del resumen diario desde la URL (ej. /analyze-pattern/12345)
+    const { summaryId } =
+      req.params;
+
+    // Se mandan los hábitos (pantalla, retos, rachas) que vienen en el body
+    const result =
+      await mlService.analyzeDailyPattern(
+        summaryId,
+        req.body
+      );
+
+    res.status(200).json({
+      ok: true,
+      message:
+        'Patrón diario analizado y clasificado correctamente',
+      data: result
+    });
+
+  } catch (error) {
+
+    next(error);
+
+  }
+};
+
+
+// =====================================
 // EXPORTS
 // =====================================
 
@@ -157,6 +195,9 @@ module.exports = {
 
   // quiz IA
   generateQuiz,
-  saveQuizResult
+  saveQuizResult,
+  
+  // patrones diarios (TU IA)
+  analyzeDailyPattern
 
 };

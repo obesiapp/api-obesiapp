@@ -292,6 +292,60 @@ const saveQuizResult = async (
   return rows[0];
 };
 
+// =====================================
+// ANÁLISIS DE PATRONES 
+// =====================================
+
+const analyzeDailyPattern = async (summaryId, data) => {
+  const {
+    screen_time_minutes,
+    challenges_completed,
+    habits_completed,
+    streak_days
+  } = data;
+
+  // 1. Armamos el paquete de datos para mandarlo a Python
+  const payload = {
+    screen_time_minutes: Number(screen_time_minutes || 0),
+    challenges_completed: Number(challenges_completed || 0),
+    habits_completed: Number(habits_completed || 0),
+    streak_days: Number(streak_days || 0)
+  };
+
+  // 2. Le preguntamos a tu API de FastAPI en qué grupo está
+  const response = await fetch(`${ML_SERVICE_URL}/analizar-patron`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const error = new Error('Error al consultar el modelo de clustering de IA');
+    error.status = 500;
+    throw error;
+  }
+
+  const result = await response.json();
+  const clusterId = result.ml_cluster_id;
+
+  // 3. Actualizamos la base de datos de PostgreSQL con el número del grupo
+  const { rows } = await db.query(
+    `
+    UPDATE healthkids.daily_summary
+    SET ml_cluster_id = $1
+    WHERE summary_id = $2
+    RETURNING *
+    `,
+    [clusterId, summaryId]
+  );
+
+  return {
+    success: true,
+    cluster_id: clusterId,
+    message: result.mensaje,
+    updated_summary: rows[0]
+  };
+};
 
 // =====================================
 // EXPORTS
@@ -305,5 +359,8 @@ module.exports = {
 
   // quiz IA
   generateQuiz,
-  saveQuizResult
+  saveQuizResult,
+  
+  // patrones diarios 
+  analyzeDailyPattern
 };

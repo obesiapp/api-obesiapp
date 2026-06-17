@@ -10,28 +10,37 @@ from quiz_generator import generate_quiz
 app = FastAPI(title="ObesiApp ML Service")
 
 # ==========================
-# MODELO DE OBESIDAD
+# CARGA DE MODELOS IA
 # ==========================
 
+# 1. Modelo de Riesgo (Original)
 model = joblib.load("obesiapp_rf_model.pkl")
 
+# 2. Modelo de Clustering / Patrones Diarios (Tuyo)
+# NOTA: Cambia el nombre si tu archivo .pkl de clustering se llama diferente
+clustering_model = joblib.load("obesity_rf_model.pkl") 
+
+
+# ==========================
+# ESQUEMAS DE DATOS
+# ==========================
 
 class RiskInput(BaseModel):
     age: int
     gender: str
     bmi: float
 
-
-# ==========================
-# MODELO DE QUIZ
-# ==========================
-
 class QuizRequest(BaseModel):
     age_range: str
     level: int
     topic: str
 
-
+# 3. Tu nuevo esquema para validar los hábitos de los niños
+class DatosDiarios(BaseModel):
+    screen_time_minutes: int
+    challenges_completed: int
+    habits_completed: int
+    streak_days: int
 # ==========================
 # HOME
 # ==========================
@@ -43,7 +52,8 @@ def home():
         "status": "running",
         "services": [
             "predict-risk",
-            "generate-quiz"
+            "generate-quiz",
+            "analizar-patron"  # <-- 4. Tu servicio ya aparece disponible aquí
         ]
     }
 
@@ -119,3 +129,36 @@ def create_quiz(data: QuizRequest):
             "success": False,
             "error": str(e)
         }
+
+
+# ==========================
+# ANÁLISIS DE PATRONES 
+# ==========================
+
+# 5. Tu endpoint para recibir los hábitos de DBeaver
+@app.post("/analizar-patron")
+def analizar_patron(data: DatosDiarios):
+    
+    # 1. Metemos los datos en un diccionario
+    datos_dict = {
+        "screen_time_minutes": data.screen_time_minutes,
+        "challenges_completed": data.challenges_completed,
+        "habits_completed": data.habits_completed,
+        "streak_days": data.streak_days
+    }
+    
+    # 2. Creamos el DataFrame
+    features = pd.DataFrame([datos_dict])
+    
+    # 3. EL TRUCO: Reordenamos las columnas automáticamente al gusto del modelo
+    features = features[clustering_model.feature_names_in_]
+    
+    # 4. Hacer la predicción
+    resultado = clustering_model.predict(features)
+    cluster_asignado = int(resultado[0])
+    
+    return {
+        "success": True,
+        "ml_cluster_id": cluster_asignado,
+        "mensaje": f"Patrón analizado correctamente. Asignado al grupo {cluster_asignado}"
+    }

@@ -8,51 +8,38 @@ const router = Router();
 
 router.use(verifyToken);
 
-/**
- * =====================================
- * MODELO DE OBESIDAD
- * =====================================
- */
+// =====================================
+// MODELO DE OBESIDAD
+// =====================================
 
-// Crear evaluación de salud
 router.post(
   '/children/:childId/health-metrics',
   mlController.createHealthMetric
 );
 
-// Obtener última evaluación
 router.get(
   '/children/:childId/health-metrics/latest',
   mlController.getLatestHealthMetric
 );
 
+// =====================================
+// QUIZ IA
+// =====================================
 
-/**
- * =====================================
- * QUIZ IA
- * =====================================
- */
-
-// Generar quiz dinámico con IA
 router.post(
   '/children/:childId/generate-quiz',
   mlController.generateQuiz
 );
 
-// Guardar resultado del quiz
 router.post(
   '/children/:childId/quiz-result',
   mlController.saveQuizResult
 );
 
+// =====================================
+// ANÁLISIS DE PATRONES
+// =====================================
 
-/**
- * =====================================
- * ANÁLISIS DE PATRONES 
- * =====================================
- */
-
-// Analizar el resumen diario con el modelo de clustering
 router.post(
   '/daily-summary/:summaryId/analyze-pattern',
   mlController.analyzeDailyPattern

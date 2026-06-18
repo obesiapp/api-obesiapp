@@ -6,240 +6,331 @@ const ML_SERVICE_URL =
   process.env.ML_SERVICE_URL ||
   'http://localhost:8000';
 
-const calculateBMI = (weightKg, heightCm) => {
-
-  const heightM = Number(heightCm) / 100;
-
-  if (!weightKg || !heightCm || heightM <= 0) {
-
-    const error = new Error(
-      'Peso y estatura son obligatorios y deben ser válidos'
-    );
-
-    error.status = 400;
-
-    throw error;
-  }
-
-  return Number(
-    (
-      Number(weightKg) /
-      (heightM * heightM)
-    ).toFixed(2)
-  );
+const createValidationError = (message) => {
+  const error = new Error(message);
+  error.status = 400;
+  return error;
 };
 
+const calculateBMI = (weightKg, heightCm) => {
+  const weight = Number(weightKg);
+  const height = Number(heightCm);
+  const heightM = height / 100;
+
+  if (!weight || !height || heightM <= 0) {
+    throw createValidationError(
+      'Peso y estatura son obligatorios y deben ser válidos.'
+    );
+  }
+
+  return Number((weight / (heightM * heightM)).toFixed(2));
+};
+
+const getAgeRangeLimits = (age) => {
+  if (age >= 6 && age <= 8) {
+    return {
+      minHeight: 100,
+      maxHeight: 150,
+      minWeight: 15,
+      maxWeight: 65
+    };
+  }
+
+  if (age >= 9 && age <= 10) {
+    return {
+      minHeight: 115,
+      maxHeight: 170,
+      minWeight: 20,
+      maxWeight: 85
+    };
+  }
+
+  if (age >= 11 && age <= 12) {
+    return {
+      minHeight: 125,
+      maxHeight: 185,
+      minWeight: 25,
+      maxWeight: 110
+    };
+  }
+
+  return {
+    minHeight: 90,
+    maxHeight: 190,
+    minWeight: 12,
+    maxWeight: 120
+  };
+};
+
+const validateHealthMetricInput = (data) => {
+  const age = Number(data.age);
+  const weight = Number(data.weight_kg);
+  const height = Number(data.height_cm);
+  const gender = String(data.gender || '').toLowerCase();
+
+  if (!age || age < 6 || age > 12) {
+    throw createValidationError(
+      'La edad debe estar entre 6 y 12 años.'
+    );
+  }
+
+  if (!['male', 'female'].includes(gender)) {
+    throw createValidationError(
+      'El género debe ser masculino o femenino.'
+    );
+  }
+
+  if (!weight || weight <= 0) {
+    throw createValidationError(
+      'El peso es obligatorio y debe ser mayor a 0.'
+    );
+  }
+
+  if (!height || height <= 0) {
+    throw createValidationError(
+      'La estatura es obligatoria y debe ser mayor a 0.'
+    );
+  }
+
+  const limits = getAgeRangeLimits(age);
+
+  if (height < limits.minHeight || height > limits.maxHeight) {
+    throw createValidationError(
+      `La estatura para ${age} años debe estar entre ${limits.minHeight} y ${limits.maxHeight} cm.`
+    );
+  }
+
+  if (weight < limits.minWeight || weight > limits.maxWeight) {
+    throw createValidationError(
+      `El peso para ${age} años debe estar entre ${limits.minWeight} y ${limits.maxWeight} kg.`
+    );
+  }
+
+  const bmi = calculateBMI(weight, height);
+
+  if (bmi < 10 || bmi > 45) {
+    throw createValidationError(
+      'Los datos ingresados parecen incorrectos. Revisa peso y estatura.'
+    );
+  }
+
+  return {
+    age,
+    gender,
+    weight_kg: weight,
+    height_cm: height,
+    bmi
+  };
+};
+
+const getRiskRecommendation = (riskLevel) => {
+  switch (riskLevel) {
+    case 'bajo':
+      return {
+        title: 'Riesgo bajo',
+        message: 'Mantén hábitos saludables y actividad física diaria.',
+        suggestions: [
+          'Continuar con retos de movimiento.',
+          'Mantener consumo de agua natural.',
+          'Dormir adecuadamente.'
+        ]
+      };
+
+    case 'medio':
+      return {
+        title: 'Riesgo medio',
+        message: 'Se recomienda reforzar hábitos saludables.',
+        suggestions: [
+          'Reducir bebidas azucaradas.',
+          'Aumentar actividad física diaria.',
+          'Supervisar tiempo de pantalla.'
+        ]
+      };
+
+    case 'alto':
+      return {
+        title: 'Riesgo alto',
+        message: 'Se recomienda seguimiento cercano del tutor y orientación profesional.',
+        suggestions: [
+          'Consultar a un profesional de salud.',
+          'Promover actividad física ligera y constante.',
+          'Revisar hábitos de alimentación y descanso.'
+        ]
+      };
+
+    default:
+      return {
+        title: 'Sin clasificación',
+        message: 'No fue posible generar recomendaciones.',
+        suggestions: []
+      };
+  }
+};
 
 // =====================================
-// MODELO DE OBESIDAD (YA EXISTENTE)
+// MODELO DE OBESIDAD
 // =====================================
 
-const createHealthMetric = async (
-  childId,
-  data
-) => {
+const createHealthMetric = async (childId, data) => {
+  const validatedData = validateHealthMetricInput(data);
 
   const {
     age,
     gender,
     weight_kg,
-    height_cm
-  } = data;
-
-  const bmi = calculateBMI(
-    weight_kg,
-    height_cm
-  );
+    height_cm,
+    bmi
+  } = validatedData;
 
   const payload = {
-    age: Number(age),
-    gender: String(gender).toLowerCase(),
+    age,
+    gender,
     bmi
   };
 
-  const response =
-    await fetch(
-      `${ML_SERVICE_URL}/predict-risk`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      }
-    );
+  const response = await fetch(
+    `${ML_SERVICE_URL}/predict-risk`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    }
+  );
 
   if (!response.ok) {
-
     const error = new Error(
       'Error al consultar el modelo de Machine Learning'
     );
 
     error.status = 500;
-
     throw error;
   }
 
-  const prediction =
-    await response.json();
+  const prediction = await response.json();
 
-  const { rows } =
-    await db.query(
-      `
-      INSERT INTO healthkids.health_metrics (
-        child_id,
-        age,
-        gender,
-        weight_kg,
-        height_cm,
-        bmi,
-        risk_level,
-        prediction_confidence
-      )
-      VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8
-      )
-      RETURNING *
-      `,
-      [
-        childId,
-        Number(age),
-        String(gender).toLowerCase(),
-        Number(weight_kg),
-        Number(height_cm),
-        bmi,
-        prediction.risk,
-        prediction.confidence
-      ]
-    );
+  const { rows } = await db.query(
+    `
+    INSERT INTO healthkids.health_metrics (
+      child_id,
+      age,
+      gender,
+      weight_kg,
+      height_cm,
+      bmi,
+      risk_level,
+      prediction_confidence
+    )
+    VALUES (
+      $1,$2,$3,$4,$5,$6,$7,$8
+    )
+    RETURNING *
+    `,
+    [
+      childId,
+      age,
+      gender,
+      weight_kg,
+      height_cm,
+      bmi,
+      prediction.risk,
+      prediction.confidence
+    ]
+  );
 
   return {
     metric: rows[0],
-    model:
-      'Random Forest - NHANES Child Obesity',
-    prediction
+    model: 'Random Forest - NHANES Child Obesity',
+    prediction,
+    recommendation: getRiskRecommendation(prediction.risk)
   };
 };
-
 
 // =====================================
 // OBTENER ÚLTIMA MÉTRICA
 // =====================================
 
-const getLatestHealthMetric =
-async (childId) => {
-
-  const { rows } =
-    await db.query(
-      `
-      SELECT *
-      FROM healthkids.health_metrics
-      WHERE child_id = $1
-      ORDER BY created_at DESC
-      LIMIT 1
-      `,
-      [childId]
-    );
+const getLatestHealthMetric = async (childId) => {
+  const { rows } = await db.query(
+    `
+    SELECT *
+    FROM healthkids.health_metrics
+    WHERE child_id = $1
+    ORDER BY created_at DESC
+    LIMIT 1
+    `,
+    [childId]
+  );
 
   if (rows.length === 0) {
-
     const error = new Error(
       'No hay evaluación de salud registrada para este niño'
     );
 
     error.status = 404;
-
     throw error;
   }
 
   return rows[0];
 };
 
-
 // =====================================
 // NUEVO QUIZ IA
 // =====================================
 
-const generateQuiz = async (
-  childId,
-  topic
-) => {
-
-  const child =
-    await db.query(
-      `
-      SELECT
-        child_id,
-        age_range,
-        current_level_id
-      FROM healthkids.child_profiles
-      WHERE child_id = $1
-      `,
-      [childId]
-    );
+const generateQuiz = async (childId, topic) => {
+  const child = await db.query(
+    `
+    SELECT
+      child_id,
+      age_range,
+      current_level_id
+    FROM healthkids.child_profiles
+    WHERE child_id = $1
+    `,
+    [childId]
+  );
 
   if (child.rows.length === 0) {
-
-    const error = new Error(
-      'Niño no encontrado'
-    );
-
+    const error = new Error('Niño no encontrado');
     error.status = 404;
-
     throw error;
   }
 
-  const profile =
-    child.rows[0];
+  const profile = child.rows[0];
 
   const payload = {
-    age_range:
-      profile.age_range,
-
-    level:
-      profile.current_level_id,
-
+    age_range: profile.age_range,
+    level: profile.current_level_id,
     topic
   };
 
-  const response =
-    await fetch(
-      `${ML_SERVICE_URL}/generate-quiz`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type':
-            'application/json'
-        },
-        body:
-          JSON.stringify(payload)
-      }
-    );
+  const response = await fetch(
+    `${ML_SERVICE_URL}/generate-quiz`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    }
+  );
 
   if (!response.ok) {
-
-    const error = new Error(
-      'Error generando quiz con IA'
-    );
-
+    const error = new Error('Error generando quiz con IA');
     error.status = 500;
-
     throw error;
   }
 
   return await response.json();
 };
 
-
 // =====================================
 // GUARDAR RESULTADO QUIZ
 // =====================================
 
-const saveQuizResult = async (
-  childId,
-  result
-) => {
-
+const saveQuizResult = async (childId, result) => {
   const {
     topic,
     score,
@@ -248,39 +339,37 @@ const saveQuizResult = async (
     xpEarned
   } = result;
 
-  const { rows } =
-    await db.query(
-      `
-      INSERT INTO healthkids.quiz_attempts (
-        child_id,
-        topic,
-        difficulty,
-        score,
-        total_questions,
-        percentage,
-        xp_earned
-      )
-      VALUES (
-        $1,$2,$3,$4,$5,$6,$7
-      )
-      RETURNING *
-      `,
-      [
-        childId,
-        topic,
-        'dynamic',
-        score,
-        totalQuestions,
-        percentage,
-        xpEarned
-      ]
-    );
+  const { rows } = await db.query(
+    `
+    INSERT INTO healthkids.quiz_attempts (
+      child_id,
+      topic,
+      difficulty,
+      score,
+      total_questions,
+      percentage,
+      xp_earned
+    )
+    VALUES (
+      $1,$2,$3,$4,$5,$6,$7
+    )
+    RETURNING *
+    `,
+    [
+      childId,
+      topic,
+      'dynamic',
+      score,
+      totalQuestions,
+      percentage,
+      xpEarned
+    ]
+  );
 
   await db.query(
     `
     UPDATE healthkids.child_profiles
-    SET current_xp =
-      current_xp + $1
+    SET current_xp = current_xp + $1
     WHERE child_id = $2
     `,
     [
@@ -293,7 +382,7 @@ const saveQuizResult = async (
 };
 
 // =====================================
-// ANÁLISIS DE PATRONES 
+// ANÁLISIS DE PATRONES
 // =====================================
 
 const analyzeDailyPattern = async (summaryId, data) => {
@@ -304,7 +393,6 @@ const analyzeDailyPattern = async (summaryId, data) => {
     streak_days
   } = data;
 
-  // 1. Armamos el paquete de datos para mandarlo a Python
   const payload = {
     screen_time_minutes: Number(screen_time_minutes || 0),
     challenges_completed: Number(challenges_completed || 0),
@@ -312,15 +400,22 @@ const analyzeDailyPattern = async (summaryId, data) => {
     streak_days: Number(streak_days || 0)
   };
 
-  // 2. Le preguntamos a tu API de FastAPI en qué grupo está
-  const response = await fetch(`${ML_SERVICE_URL}/analizar-patron`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  const response = await fetch(
+    `${ML_SERVICE_URL}/analizar-patron`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    }
+  );
 
   if (!response.ok) {
-    const error = new Error('Error al consultar el modelo de clustering de IA');
+    const error = new Error(
+      'Error al consultar el modelo de clustering de IA'
+    );
+
     error.status = 500;
     throw error;
   }
@@ -328,7 +423,6 @@ const analyzeDailyPattern = async (summaryId, data) => {
   const result = await response.json();
   const clusterId = result.ml_cluster_id;
 
-  // 3. Actualizamos la base de datos de PostgreSQL con el número del grupo
   const { rows } = await db.query(
     `
     UPDATE healthkids.daily_summary
@@ -352,19 +446,9 @@ const analyzeDailyPattern = async (summaryId, data) => {
 // =====================================
 
 module.exports = {
-
-  // obesidad
   createHealthMetric,
   getLatestHealthMetric,
-
-  // quiz IA
   generateQuiz,
   saveQuizResult,
-  
-  // patrones diarios 
   analyzeDailyPattern
 };
-
-
-
-

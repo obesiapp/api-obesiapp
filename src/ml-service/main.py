@@ -4,6 +4,11 @@ import joblib
 import pandas as pd
 import json
 
+
+import os
+
+print("OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
+
 # Importar generador de quiz
 from quiz_generator import generate_quiz
 

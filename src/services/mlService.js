@@ -441,6 +441,88 @@ const analyzeDailyPattern = async (summaryId, data) => {
   };
 };
 
+const getDailySummary = async (childId) => {
+
+  try{
+
+    let { rows } = await db.query(
+      `
+      SELECT *
+      FROM healthkids.daily_summary
+      WHERE child_id = $1
+      AND summary_date = CURRENT_DATE
+      LIMIT 1
+      `,
+      [childId]
+    );
+
+    // Si no existe el resumen del día, se crea automáticamente
+    if(rows.length === 0){
+
+      await db.query(
+        `
+        INSERT INTO healthkids.daily_summary
+        (
+          child_id,
+          summary_date,
+          xp_gained,
+          challenges_completed,
+          habits_completed,
+          habits_total,
+          screen_time_minutes,
+          screen_limit_exceeded,
+          streak_days_at_date,
+          computed_at,
+          water_intake,
+          physical_activity_minutes,
+          junk_food_portions,
+          ml_cluster_id
+        )
+        VALUES
+        (
+          $1,
+          CURRENT_DATE,
+          0,
+          0,
+          0,
+          0,
+          0,
+          false,
+          0,
+          NOW(),
+          0,
+          0,
+          0,
+          NULL
+        )
+        `,
+        [childId]
+      );
+
+      ({rows} = await db.query(
+        `
+        SELECT *
+        FROM healthkids.daily_summary
+        WHERE child_id = $1
+        AND summary_date = CURRENT_DATE
+        LIMIT 1
+        `,
+        [childId]
+      ));
+
+    }
+
+    return rows[0];
+
+  }catch(error){
+
+    console.error("Error en getDailySummary:", error);
+    throw error;
+
+  }
+
+};
+
 // =====================================
 // EXPORTS
 // =====================================
@@ -450,5 +532,6 @@ module.exports = {
   getLatestHealthMetric,
   generateQuiz,
   saveQuizResult,
+  getDailySummary,
   analyzeDailyPattern
 };

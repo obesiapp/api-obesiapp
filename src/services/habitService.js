@@ -95,6 +95,116 @@ const logHabit = async (childId, { habitId, logDate, valueAchieved, isCompleted,
     [childId, habitId, logDate, valueAchieved ?? null, completed, xpEarned, source || 'manual']
   );
 
+  // =====================================
+  // ACTUALIZAR DAILY SUMMARY
+  // =====================================
+
+  // Total de hábitos completados hoy
+  const { rows: [stats] } = await db.query(
+    `
+    SELECT
+      COUNT(*) FILTER (WHERE is_completed = TRUE) AS completed,
+      COUNT(*) AS total
+    FROM habit_logs
+    WHERE child_id = $1
+      AND log_date = $2
+    `,
+    [childId, logDate]
+  );
+
+  // Agua tomada
+let waterIntake = null;
+
+if (habit.name === 'Beber agua') {
+  waterIntake = Number(valueAchieved);
+}
+
+// Actividad física
+let physicalActivity = null;
+
+if (habit.name === 'Ejercicio diario') {
+  physicalActivity = Number(valueAchieved);
+}
+
+// Valores que usará la IA (por ahora en 0)
+const junkFood = 0;
+const challengesCompleted = 0;
+const screenTime = 0;
+const streakDays = 0;
+const xpGained = 0;
+
+try {
+  // UPSERT del resumen diario
+  await db.query(
+    `
+    INSERT INTO healthkids.daily_summary
+    (
+      child_id,
+      summary_date,
+      xp_gained,
+      challenges_completed,
+      habits_completed,
+      habits_total,
+      screen_time_minutes,
+      screen_limit_exceeded,
+      streak_days_at_date,
+      water_intake,
+      physical_activity_minutes,
+      junk_food_portions,
+      computed_at
+    )
+    VALUES
+    (
+      $1,$2,$3,$4,$5,$6,$7,false,$8,$9,$10,$11,
+      NOW()
+    )
+
+    ON CONFLICT (child_id, summary_date)
+
+    DO UPDATE SET
+
+      habits_completed = EXCLUDED.habits_completed,
+      habits_total = EXCLUDED.habits_total,
+
+      water_intake =
+        COALESCE(EXCLUDED.water_intake,
+                daily_summary.water_intake),
+
+      physical_activity_minutes =
+        COALESCE(EXCLUDED.physical_activity_minutes,
+                daily_summary.physical_activity_minutes),
+
+      junk_food_portions =
+        COALESCE(EXCLUDED.junk_food_portions,
+                daily_summary.junk_food_portions),
+
+      computed_at = NOW()
+    `,
+    [
+    childId,
+    logDate,
+    xpGained,
+    challengesCompleted,
+    Number(stats.completed),
+    Number(stats.total),
+    screenTime,
+    streakDays,
+    waterIntake,
+    physicalActivity,
+    junkFood
+    ]
+  );
+
+  console.log("Daily summary actualizado");
+
+} catch(err){
+
+   console.error("ERROR DAILY SUMMARY");
+
+   console.error(err);
+
+}
+
   logger.info('[HABIT] Hábito registrado', {
     childId, habitId, logDate, isCompleted: completed, xpEarned, integrityHash,
   });

@@ -116,6 +116,28 @@ const analyzeDailyPattern = async (req, res, next) => {
   }
 };
 
+const getDailySummary = async (req, res, next) => {
+  try {
+
+    console.log("===== GET DAILY SUMMARY =====");
+    console.log("PARAMS:", req.params);
+    console.log("USER:", req.user);
+
+    const { childId } = req.params;
+
+    const result = await mlService.getDailySummary(childId);
+
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+
+  } catch (error) {
+    console.error(error);
+    next(error);
+  }
+};
+
 // =====================================
 // EXPORTS
 // =====================================
@@ -125,5 +147,6 @@ module.exports = {
   getLatestHealthMetric,
   generateQuiz,
   saveQuizResult,
-  analyzeDailyPattern
+  analyzeDailyPattern,
+  getDailySummary
 };

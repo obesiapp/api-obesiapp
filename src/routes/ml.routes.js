@@ -45,4 +45,10 @@ router.post(
   mlController.analyzeDailyPattern
 );
 
+router.get(
+  '/daily-summary/:childId',
+  mlController.getDailySummary
+);
+
+
 module.exports = router;

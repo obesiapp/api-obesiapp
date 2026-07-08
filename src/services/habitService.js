@@ -67,11 +67,10 @@ const logHabit = async (childId, { habitId, logDate, valueAchieved, isCompleted,
   }
 
   // Determinar si se completó según el valor alcanzado
-  const completed = isCompleted ?? (
-    habit.target_value != null
-      ? parseFloat(valueAchieved || 0) >= parseFloat(habit.target_value)
-      : false
-  );
+  const completed =
+  habit.target_value != null
+    ? Number(valueAchieved || 0) >= Number(habit.target_value)
+    : false;
 
   const xpEarned = completed ? habit.xp_per_completion : null;
 
@@ -80,6 +79,9 @@ const logHabit = async (childId, { habitId, logDate, valueAchieved, isCompleted,
   const integrityHash    = computeHash(integrityPayload);
 
   // UPSERT — una sola entrada por (child, habit, fecha)
+  console.log("valueAchieved:", valueAchieved);
+console.log("completed:", completed);
+console.log("target:", habit.target_value);
   const { rows: [log] } = await db.query(
     `INSERT INTO habit_logs
        (child_id, habit_id, log_date, value_achieved, is_completed, xp_earned, source)
@@ -93,7 +95,15 @@ const logHabit = async (childId, { habitId, logDate, valueAchieved, isCompleted,
        logged_at      = NOW()
      RETURNING log_id, habit_id, log_date, value_achieved, is_completed, xp_earned, logged_at`,
     [childId, habitId, logDate, valueAchieved ?? null, completed, xpEarned, source || 'manual']
+    
   );
+  console.log({
+  childId,
+  habitId,
+  logDate,
+  valueAchieved,
+  completed
+});
 
   // =====================================
   // ACTUALIZAR DAILY SUMMARY
@@ -112,26 +122,59 @@ const logHabit = async (childId, { habitId, logDate, valueAchieved, isCompleted,
     [childId, logDate]
   );
 
-  // Agua tomada
-let waterIntake = null;
+  // Obtener datos específicos de hábitos del día
+const { rows: habitsToday } = await db.query(
+  `
+  SELECT
+    hc.name,
+    hl.value_achieved,
+    hl.is_completed
+  FROM habit_logs hl
+  INNER JOIN habit_catalog hc
+  ON hc.habit_id = hl.habit_id
+  WHERE hl.child_id = $1
+  AND hl.log_date = $2
+  `,
+  [childId, logDate]
+);
 
-if (habit.name === 'Beber agua') {
-  waterIntake = Number(valueAchieved);
-}
 
-// Actividad física
-let physicalActivity = null;
+// Valores del resumen diario
+let waterIntake = 0;
+let physicalActivity = 0;
+let junkFood = 0;
 
-if (habit.name === 'Ejercicio diario') {
-  physicalActivity = Number(valueAchieved);
-}
 
-// Valores que usará la IA (por ahora en 0)
-const junkFood = 0;
-const challengesCompleted = 0;
-const screenTime = 0;
-const streakDays = 0;
-const xpGained = 0;
+// Obtener valores de hábitos
+habitsToday.forEach((habit)=>{
+
+  if(habit.name === 'Beber agua'){
+    waterIntake = Number(habit.value_achieved);
+  }
+
+
+  if(habit.name === 'Ejercicio diario'){
+    physicalActivity = Number(habit.value_achieved);
+  }
+
+});
+
+
+    // Valores que usará la IA (por ahora en 0)
+    const challengesCompleted = 0;
+    const screenTime = 0;
+    const streakDays = 0;
+    const xpGained = 0;
+
+    console.log("DATOS PARA DAILY SUMMARY:");
+    console.log({
+      childId,
+      logDate,
+      waterIntake,
+      physicalActivity,
+      habitsCompleted: Number(stats.completed),
+      habitsTotal: Number(stats.total)
+    });
 
 try {
   // UPSERT del resumen diario
@@ -163,20 +206,20 @@ try {
 
     DO UPDATE SET
 
-      habits_completed = EXCLUDED.habits_completed,
-      habits_total = EXCLUDED.habits_total,
+      habits_completed = 
+      EXCLUDED.habits_completed,
 
-      water_intake =
-        COALESCE(EXCLUDED.water_intake,
-                daily_summary.water_intake),
+      habits_total = 
+      EXCLUDED.habits_total,
 
-      physical_activity_minutes =
-        COALESCE(EXCLUDED.physical_activity_minutes,
-                daily_summary.physical_activity_minutes),
+      water_intake = 
+      EXCLUDED.water_intake,
 
-      junk_food_portions =
-        COALESCE(EXCLUDED.junk_food_portions,
-                daily_summary.junk_food_portions),
+      physical_activity_minutes = 
+      EXCLUDED.physical_activity_minutes,
+
+      junk_food_portions = 
+      EXCLUDED.junk_food_portions,
 
       computed_at = NOW()
     `,

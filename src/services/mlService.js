@@ -421,12 +421,19 @@ const analyzeDailyPattern = async (summaryId, data) => {
   console.log("Status Python:", response.status);
 
   if (!response.ok) {
-    const error = new Error(
-      "Error al consultar el modelo de clustering de IA"
-    );
-    error.status = 500;
-    throw error;
-  }
+
+  const detalle = await response.text();
+
+  console.error("STATUS:", response.status);
+  console.error("RESPUESTA PYTHON:", detalle);
+
+  const error = new Error(
+    "Error al consultar el modelo de clustering de IA"
+  );
+
+  error.status = 500;
+  throw error;
+}
 
   const result = await response.json();
 

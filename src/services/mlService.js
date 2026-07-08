@@ -386,6 +386,11 @@ const saveQuizResult = async (childId, result) => {
 // =====================================
 
 const analyzeDailyPattern = async (summaryId, data) => {
+
+  console.log("===== ANALYZE DAILY PATTERN =====");
+  console.log("summaryId:", summaryId);
+  console.log("data:", data);
+
   const {
     screen_time_minutes,
     challenges_completed,
@@ -400,27 +405,33 @@ const analyzeDailyPattern = async (summaryId, data) => {
     streak_days: Number(streak_days || 0)
   };
 
+  console.log("Payload enviado a Python:", payload);
+
   const response = await fetch(
     `${ML_SERVICE_URL}/analizar-patron`,
     {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
     }
   );
 
+  console.log("Status Python:", response.status);
+
   if (!response.ok) {
     const error = new Error(
-      'Error al consultar el modelo de clustering de IA'
+      "Error al consultar el modelo de clustering de IA"
     );
-
     error.status = 500;
     throw error;
   }
 
   const result = await response.json();
+
+  console.log("Resultado IA:", result);
+
   const clusterId = result.ml_cluster_id;
 
   const { rows } = await db.query(

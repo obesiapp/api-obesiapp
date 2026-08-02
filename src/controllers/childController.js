@@ -66,4 +66,33 @@ const trend = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+exports.deleteChild = async (req, res) => {
+  try {
+
+    const guardianId = req.user.id; // o req.user.account_id
+
+    const { childId } = req.params;
+
+    await childService.deleteChild(
+      guardianId,
+      childId
+    );
+
+    return res.json({
+      success: true,
+      message: "Niño eliminado correctamente"
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+
+  }
+};
+
 module.exports = { list, getOne, create, update, dashboard, trend };

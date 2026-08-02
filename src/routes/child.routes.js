@@ -84,6 +84,12 @@ router.get('/:childId/trend',
   childCtrl.trend
 );
 
+router.delete(
+  '/:childId',
+  authMiddleware,
+  childController.deleteChild
+);
+
 // ─── Hábitos ──────────────────────────────────────────────────────────────────
 
 /**

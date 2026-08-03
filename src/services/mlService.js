@@ -9,6 +9,10 @@ const ML_SERVICE_URL = (
 
 console.log('[ML] Servicio configurado:', ML_SERVICE_URL);
 
+// =====================================
+// UTILIDADES
+// =====================================
+
 const createValidationError = (message) => {
   const error = new Error(message);
   error.status = 400;
@@ -65,13 +69,15 @@ const getAgeRangeLimits = (age) => {
   };
 };
 
-const validateHealthMetricInput = (data) => {
+const validateHealthMetricInput = (data = {}) => {
   const age = Number(data.age);
   const weight = Number(data.weight_kg);
   const height = Number(data.height_cm);
-  const gender = String(data.gender || '').toLowerCase();
+  const gender = String(data.gender || '')
+    .trim()
+    .toLowerCase();
 
-  if (!age || age < 6 || age > 12) {
+  if (!Number.isFinite(age) || age < 6 || age > 12) {
     throw createValidationError(
       'La edad debe estar entre 6 y 12 años.'
     );
@@ -83,13 +89,13 @@ const validateHealthMetricInput = (data) => {
     );
   }
 
-  if (!weight || weight <= 0) {
+  if (!Number.isFinite(weight) || weight <= 0) {
     throw createValidationError(
       'El peso es obligatorio y debe ser mayor a 0.'
     );
   }
 
-  if (!height || height <= 0) {
+  if (!Number.isFinite(height) || height <= 0) {
     throw createValidationError(
       'La estatura es obligatoria y debe ser mayor a 0.'
     );
@@ -97,13 +103,19 @@ const validateHealthMetricInput = (data) => {
 
   const limits = getAgeRangeLimits(age);
 
-  if (height < limits.minHeight || height > limits.maxHeight) {
+  if (
+    height < limits.minHeight ||
+    height > limits.maxHeight
+  ) {
     throw createValidationError(
       `La estatura para ${age} años debe estar entre ${limits.minHeight} y ${limits.maxHeight} cm.`
     );
   }
 
-  if (weight < limits.minWeight || weight > limits.maxWeight) {
+  if (
+    weight < limits.minWeight ||
+    weight > limits.maxWeight
+  ) {
     throw createValidationError(
       `El peso para ${age} años debe estar entre ${limits.minWeight} y ${limits.maxWeight} kg.`
     );
@@ -131,7 +143,8 @@ const getRiskRecommendation = (riskLevel) => {
     case 'bajo':
       return {
         title: 'Riesgo bajo',
-        message: 'Mantén hábitos saludables y actividad física diaria.',
+        message:
+          'Mantén hábitos saludables y actividad física diaria.',
         suggestions: [
           'Continuar con retos de movimiento.',
           'Mantener consumo de agua natural.',
@@ -142,7 +155,8 @@ const getRiskRecommendation = (riskLevel) => {
     case 'medio':
       return {
         title: 'Riesgo medio',
-        message: 'Se recomienda reforzar hábitos saludables.',
+        message:
+          'Se recomienda reforzar hábitos saludables.',
         suggestions: [
           'Reducir bebidas azucaradas.',
           'Aumentar actividad física diaria.',
@@ -153,7 +167,8 @@ const getRiskRecommendation = (riskLevel) => {
     case 'alto':
       return {
         title: 'Riesgo alto',
-        message: 'Se recomienda seguimiento cercano del tutor y orientación profesional.',
+        message:
+          'Se recomienda seguimiento cercano del tutor y orientación profesional.',
         suggestions: [
           'Consultar a un profesional de salud.',
           'Promover actividad física ligera y constante.',
@@ -164,9 +179,92 @@ const getRiskRecommendation = (riskLevel) => {
     default:
       return {
         title: 'Sin clasificación',
-        message: 'No fue posible generar recomendaciones.',
+        message:
+          'No fue posible generar recomendaciones.',
         suggestions: []
       };
+  }
+};
+
+const requestMLService = async (
+  endpointPath,
+  payload,
+  timeoutMs = 60000
+) => {
+  const endpoint = `${ML_SERVICE_URL}${endpointPath}`;
+
+  console.log('[ML] Consultando servicio:', {
+    endpoint,
+    payload
+  });
+
+  let response;
+
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+  } catch (fetchError) {
+    console.error('[ML] Error de conexión con FastAPI:', {
+      endpoint,
+      message: fetchError.message,
+      cause: fetchError.cause
+    });
+
+    const error = new Error(
+      'No fue posible conectar con el servicio de Machine Learning'
+    );
+
+    error.status = 503;
+    throw error;
+  }
+
+  const responseText = await response.text();
+
+  console.log('[ML] Respuesta de FastAPI:', {
+    endpoint,
+    status: response.status,
+    statusText: response.statusText,
+    body: responseText
+  });
+
+  if (!response.ok) {
+    console.error('[ML] FastAPI respondió con error:', {
+      endpoint,
+      status: response.status,
+      body: responseText
+    });
+
+    const error = new Error(
+      `El servicio de Machine Learning respondió con código ${response.status}`
+    );
+
+    error.status = 502;
+    error.details = responseText;
+    throw error;
+  }
+
+  try {
+    return JSON.parse(responseText);
+  } catch (parseError) {
+    console.error('[ML] FastAPI devolvió JSON inválido:', {
+      endpoint,
+      body: responseText,
+      message: parseError.message
+    });
+
+    const error = new Error(
+      'El servicio de Machine Learning devolvió una respuesta inválida'
+    );
+
+    error.status = 502;
+    throw error;
   }
 };
 
@@ -191,62 +289,86 @@ const createHealthMetric = async (childId, data) => {
     bmi
   };
 
-  const response = await fetch(
-    `${ML_SERVICE_URL}/predict-risk`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    }
+  const prediction = await requestMLService(
+    '/predict-risk',
+    payload
   );
 
-  if (!response.ok) {
+  if (
+    !prediction.risk ||
+    prediction.confidence === undefined ||
+    prediction.confidence === null
+  ) {
+    console.error('[ML] Predicción incompleta:', prediction);
+
     const error = new Error(
-      'Error al consultar el modelo de Machine Learning'
+      'La respuesta del modelo no contiene la clasificación esperada'
+    );
+
+    error.status = 502;
+    throw error;
+  }
+
+  console.log('[ML] Predicción obtenida:', prediction);
+
+  let rows;
+
+  try {
+    const result = await db.query(
+      `
+      INSERT INTO healthkids.health_metrics (
+        child_id,
+        age,
+        gender,
+        weight_kg,
+        height_cm,
+        bmi,
+        risk_level,
+        prediction_confidence
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8
+      )
+      RETURNING *
+      `,
+      [
+        childId,
+        age,
+        gender,
+        weight_kg,
+        height_cm,
+        bmi,
+        prediction.risk,
+        prediction.confidence
+      ]
+    );
+
+    rows = result.rows;
+  } catch (databaseError) {
+    console.error('[ML] Error al guardar health_metrics:', {
+      childId,
+      code: databaseError.code,
+      message: databaseError.message,
+      detail: databaseError.detail,
+      table: databaseError.table,
+      column: databaseError.column,
+      constraint: databaseError.constraint
+    });
+
+    const error = new Error(
+      'La predicción se generó, pero no pudo guardarse en la base de datos'
     );
 
     error.status = 500;
     throw error;
   }
 
-  const prediction = await response.json();
-
-  const { rows } = await db.query(
-    `
-    INSERT INTO healthkids.health_metrics (
-      child_id,
-      age,
-      gender,
-      weight_kg,
-      height_cm,
-      bmi,
-      risk_level,
-      prediction_confidence
-    )
-    VALUES (
-      $1,$2,$3,$4,$5,$6,$7,$8
-    )
-    RETURNING *
-    `,
-    [
-      childId,
-      age,
-      gender,
-      weight_kg,
-      height_cm,
-      bmi,
-      prediction.risk,
-      prediction.confidence
-    ]
-  );
-
   return {
     metric: rows[0],
     model: 'Random Forest - NHANES Child Obesity',
     prediction,
-    recommendation: getRiskRecommendation(prediction.risk)
+    recommendation:
+      getRiskRecommendation(prediction.risk)
   };
 };
 
@@ -309,24 +431,11 @@ const generateQuiz = async (childId, topic) => {
     topic
   };
 
-  const response = await fetch(
-    `${ML_SERVICE_URL}/generate-quiz`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    }
+  return requestMLService(
+    '/generate-quiz',
+    payload,
+    60000
   );
-
-  if (!response.ok) {
-    const error = new Error('Error generando quiz con IA');
-    error.status = 500;
-    throw error;
-  }
-
-  return await response.json();
 };
 
 // =====================================
@@ -388,11 +497,14 @@ const saveQuizResult = async (childId, result) => {
 // ANÁLISIS DE PATRONES
 // =====================================
 
-const analyzeDailyPattern = async (summaryId, data) => {
-
-  console.log("===== ANALYZE DAILY PATTERN =====");
-  console.log("summaryId:", summaryId);
-  console.log("data:", data);
+const analyzeDailyPattern = async (
+  summaryId,
+  data = {}
+) => {
+  console.log('[ML] Analyze daily pattern:', {
+    summaryId,
+    data
+  });
 
   const {
     screen_time_minutes,
@@ -402,47 +514,43 @@ const analyzeDailyPattern = async (summaryId, data) => {
   } = data;
 
   const payload = {
-    screen_time_minutes: Number(screen_time_minutes || 0),
-    challenges_completed: Number(challenges_completed || 0),
-    habits_completed: Number(habits_completed || 0),
-    streak_days: Number(streak_days || 0)
+    screen_time_minutes: Number(
+      screen_time_minutes || 0
+    ),
+    challenges_completed: Number(
+      challenges_completed || 0
+    ),
+    habits_completed: Number(
+      habits_completed || 0
+    ),
+    streak_days: Number(
+      streak_days || 0
+    )
   };
 
-  console.log("Payload enviado a Python:", payload);
-
-  const response = await fetch(
-    `${ML_SERVICE_URL}/analizar-patron`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    }
+  const result = await requestMLService(
+    '/analizar-patron',
+    payload
   );
-
-  console.log("Status Python:", response.status);
-
-  if (!response.ok) {
-
-  const detalle = await response.text();
-
-  console.error("STATUS:", response.status);
-  console.error("RESPUESTA PYTHON:", detalle);
-
-  const error = new Error(
-    "Error al consultar el modelo de clustering de IA"
-  );
-
-  error.status = 500;
-  throw error;
-}
-
-  const result = await response.json();
-
-  console.log("Resultado IA:", result);
 
   const clusterId = result.ml_cluster_id;
+
+  if (
+    clusterId === undefined ||
+    clusterId === null
+  ) {
+    console.error(
+      '[ML] Respuesta de clustering incompleta:',
+      result
+    );
+
+    const error = new Error(
+      'El modelo de clustering no devolvió un identificador válido'
+    );
+
+    error.status = 502;
+    throw error;
+  }
 
   const { rows } = await db.query(
     `
@@ -454,36 +562,46 @@ const analyzeDailyPattern = async (summaryId, data) => {
     [clusterId, summaryId]
   );
 
+  if (rows.length === 0) {
+    const error = new Error(
+      'No se encontró el resumen diario solicitado'
+    );
+
+    error.status = 404;
+    throw error;
+  }
+
   return {
     success: true,
     cluster_id: clusterId,
-    message: result.mensaje,
+    message:
+      result.mensaje ||
+      'Patrón diario analizado correctamente',
     updated_summary: rows[0]
   };
 };
 
+// =====================================
+// RESUMEN DIARIO
+// =====================================
+
 const getDailySummary = async (childId) => {
-
-  try{
-
+  try {
     let { rows } = await db.query(
       `
       SELECT *
       FROM healthkids.daily_summary
       WHERE child_id = $1
-      AND summary_date = CURRENT_DATE
+        AND summary_date = CURRENT_DATE
       LIMIT 1
       `,
       [childId]
     );
 
-    // Si no existe el resumen del día, se crea automáticamente
-    if(rows.length === 0){
-
+    if (rows.length === 0) {
       await db.query(
         `
-        INSERT INTO healthkids.daily_summary
-        (
+        INSERT INTO healthkids.daily_summary (
           child_id,
           summary_date,
           xp_gained,
@@ -499,8 +617,7 @@ const getDailySummary = async (childId) => {
           junk_food_portions,
           ml_cluster_id
         )
-        VALUES
-        (
+        VALUES (
           $1,
           CURRENT_DATE,
           0,
@@ -520,28 +637,29 @@ const getDailySummary = async (childId) => {
         [childId]
       );
 
-      ({rows} = await db.query(
+      const result = await db.query(
         `
         SELECT *
         FROM healthkids.daily_summary
         WHERE child_id = $1
-        AND summary_date = CURRENT_DATE
+          AND summary_date = CURRENT_DATE
         LIMIT 1
         `,
         [childId]
-      ));
+      );
 
+      rows = result.rows;
     }
 
     return rows[0];
+  } catch (error) {
+    console.error(
+      '[ML] Error en getDailySummary:',
+      error
+    );
 
-  }catch(error){
-
-    console.error("Error en getDailySummary:", error);
     throw error;
-
   }
-
 };
 
 // =====================================

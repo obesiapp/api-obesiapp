@@ -39,6 +39,7 @@ class QuizRequest(BaseModel):
     age_range: str
     level: int
     topic: str
+    child_id: Optional[int] = None
 
 # 3. Tu nuevo esquema para validar los hábitos de los niños
 class DatosDiarios(BaseModel):
@@ -105,25 +106,22 @@ def predict(data: RiskInput):
 # ==========================
 # GENERADOR DE QUIZ IA
 # ==========================
-
-# ==========================
-# GENERADOR DE QUIZ IA
-# ==========================
-
 @app.post("/generate-quiz")
 def create_quiz(data: QuizRequest):
-
     try:
-        # Inyectamos todos los parámetros, incluyendo los nuevos
+        # Extraemos el ID de forma ultra segura. 
+        # Si por alguna razón la clase no lo tiene en memoria, devolverá None en lugar de explotar.
+        safe_child_id = getattr(data, 'child_id', None)
+
         quiz = generate_quiz(
             age_range=data.age_range,
             level=data.level,
             topic=data.topic,
-            child_id=data.child_id,
-            db_session=None  # <-- Listo para cuando  SQLAlchemy/Psycopg2
+            child_id=safe_child_id,
+            db_session=None 
         )
 
-        # Si OpenAI devuelve texto JSON dentro de un string
+        # Si OpenAI devuelve texto JSON dentro de un string, lo parseamos
         if isinstance(quiz, str):
             try:
                 quiz = json.loads(quiz)

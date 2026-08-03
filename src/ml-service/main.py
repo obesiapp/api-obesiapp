@@ -39,7 +39,7 @@ class QuizRequest(BaseModel):
     age_range: str
     level: int
     topic: str
-    child_id: Optional[int] = None
+    child_id: int | None = None
 
 # 3. Tu nuevo esquema para validar los hábitos de los niños
 class DatosDiarios(BaseModel):

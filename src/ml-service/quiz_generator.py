@@ -49,33 +49,106 @@ def get_level_config(level: int):
         }
 
 # ==========================================
-# 2. SISTEMA ANTI-REPETICIÓN Y FALLBACK (MOCK DB)
+# 2. SISTEMA ANTI-REPETICIÓN Y FALLBACK
 # ==========================================
-def get_recent_questions(db_session, child_id: int, limit: int = 20):
-    """
-    Consulta a la tabla `quiz_answers` unida con `quiz_attempts` 
-    para obtener las últimas preguntas vistas por el niño.
-    """
-    # Lógica pseudo-código para tu base de datos:
-    # SELECT question_text FROM quiz_answers qa 
-    # JOIN quiz_attempts qat ON qa.attempt_id = qat.id 
-    # WHERE qat.child_id = child_id ORDER BY qat.created_at DESC LIMIT limit;
-    return ["¿Qué es una manzana?", "¿Cuánta agua tomar?"] # Ejemplo
+def get_recent_questions(db_session, child_id):
+    # Si no hay sesión de BD, retornamos lista vacía para no romper el flujo
+    if not db_session or not child_id:
+        return []
+        
+    # Aquí irá tu consulta SQL real en el futuro
+    return [] 
 
-def get_intelligent_fallback(db_session, level: int):
-    """
-    Si OpenAI falla, extrae 5 preguntas aleatorias del mismo nivel 
-    que ya existan en la base de datos (generadas previamente).
-    """
-    # Pseudo-código:
-    # SELECT question_text, options, answer FROM quiz_answers qa
-    # JOIN quiz_attempts qat ON qa.attempt_id = qat.id
-    # WHERE qat.level = level
-    # ORDER BY random() LIMIT 5;
-    print(f"Usando fallback inteligente para el nivel {level} desde PostgreSQL.")
-    # Si la BD está vacía para ese nivel, devuelve un fallback duro de seguridad.
-    return {"questions": [{"question": "Fallback", "options": ["A", "B", "C", "D"], "answer": "A"}]}
+def get_intelligent_fallback(level: int, db_session=None):
+    if db_session:
+        # Aquí irá tu lógica SQL para extraer preguntas previas
+        print(f"Usando fallback inteligente para el nivel {level} desde PostgreSQL.")
+    
+    # Fallback duro de seguridad si no hay BD conectada aún
+    return {
+        "questions": [
+            {"question": "¿Cuál de estos alimentos es más saludable?", "options": ["Hamburguesa", "Brócoli", "Refresco", "Dulces"], "answer": "Brócoli"},
+            {"question": "¿Qué bebida ayuda más a hidratarte?", "options": ["Agua", "Refresco", "Bebida energética", "Jugo azucarado"], "answer": "Agua"},
+            {"question": "¿Qué actividad ayuda a mantenerte saludable?", "options": ["Correr", "Ver televisión", "Dormir todo el día", "Jugar videojuegos"], "answer": "Correr"},
+            {"question": "¿Qué alimento contiene vitaminas importantes?", "options": ["Frutas", "Papas fritas", "Dulces", "Refresco"], "answer": "Frutas"},
+            {"question": "¿Cuántas veces al día es recomendable tomar agua?", "options": ["Varias veces al día", "Una vez al día", "Nunca", "Solo cuando hace calor"], "answer": "Varias veces al día"}
+        ]
+    }
 
+# ==========================================
+# 3. GENERADOR NÚCLEO (LLM)
+# ==========================================
+# Reordenamos los parámetros y hacemos db_session y child_id opcionales (=None)
+def generate_quiz(age_range, level, topic, db_session=None, child_id=int):
+    
+    # Convertir level a int de forma segura
+    try:
+        level_num = int(level)
+    except (ValueError, TypeError):
+        level_num = 1
+        
+    config = get_level_config(level_num)
+    
+    # Intentar obtener preguntas recientes solo si pasaron la base de datos
+    recent_questions = get_recent_questions(db_session, child_id)
+    
+    avoid_questions_str = "\n".join([f"- {q}" for q in recent_questions]) if recent_questions else "Ninguna por ahora."
+    
+    prompt = f"""
+Genera un quiz educativo de nutrición para niños.
+
+PERFIL DEL JUGADOR:
+- Edad: {age_range}
+- Nivel actual: {level_num} / 50
+- Tema general: {topic}
+
+CONFIGURACIÓN DE DIFICULTAD:
+- Dificultad: {config['dificultad']}
+- Subtemas permitidos: {config['temas']}
+- Enfoque metodológico: {config['enfoque']}
+
+REGLA ANTI-REPETICIÓN ESTRICTA:
+NO puedes generar ninguna de las siguientes preguntas:
+{avoid_questions_str}
+
+REGLAS TÉCNICAS:
+1. Genera exactamente 5 preguntas.
+2. Cada pregunta debe tener 4 opciones.
+3. Solo una respuesta correcta.
+4. Devuelve ÚNICAMENTE un JSON válido. Cero texto adicional.
+
+FORMATO ESPERADO:
+{{
+  "questions": [
+    {{
+      "question": "Texto de la pregunta",
+      "options": ["A", "B", "C", "D"],
+      "answer": "A"
+    }}
+  ]
+}}
+"""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Eres el motor de IA de un videojuego educativo de nutrición infantil."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"},
+            timeout=10
+        )
+        
+        quiz = json.loads(response.choices[0].message.content)
+        
+        if not quiz.get("questions") or len(quiz["questions"]) != 5:
+            raise ValueError("El JSON generado está incompleto.")
+            
+        return quiz
+
+    except Exception as error:
+        print(f"Error en LLM: {str(error)}. Disparando fallback inteligente.")
+        return get_intelligent_fallback(level_num, db_session)
 # ==========================================
 # 3. GENERADOR NÚCLEO (LLM)
 # ==========================================

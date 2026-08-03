@@ -106,22 +106,29 @@ def predict(data: RiskInput):
 # GENERADOR DE QUIZ IA
 # ==========================
 
+# ==========================
+# GENERADOR DE QUIZ IA
+# ==========================
+
 @app.post("/generate-quiz")
 def create_quiz(data: QuizRequest):
 
     try:
-
+        # Inyectamos todos los parámetros, incluyendo los nuevos
         quiz = generate_quiz(
             age_range=data.age_range,
             level=data.level,
-            topic=data.topic
+            topic=data.topic,
+            child_id=data.child_id,
+            db_session=None  # <-- Listo para cuando  SQLAlchemy/Psycopg2
         )
 
-        # Si OpenAI devuelve texto JSON
-        try:
-            quiz = json.loads(quiz)
-        except:
-            pass
+        # Si OpenAI devuelve texto JSON dentro de un string
+        if isinstance(quiz, str):
+            try:
+                quiz = json.loads(quiz)
+            except:
+                pass
 
         return {
             "success": True,
@@ -129,7 +136,6 @@ def create_quiz(data: QuizRequest):
         }
 
     except Exception as e:
-
         return {
             "success": False,
             "error": str(e)

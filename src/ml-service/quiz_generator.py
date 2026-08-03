@@ -79,7 +79,7 @@ def get_intelligent_fallback(level: int, db_session=None):
 # 3. GENERADOR NÚCLEO (LLM)
 # ==========================================
 # Reordenamos los parámetros y hacemos db_session y child_id opcionales (=None)
-def generate_quiz(age_range, level, topic, db_session=None, child_id=int):
+def generate_quiz(age_range, level, topic, db_session=None, child_id=None):
     
     # Convertir level a int de forma segura
     try:

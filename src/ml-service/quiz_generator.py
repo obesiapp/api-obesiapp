@@ -116,14 +116,15 @@ REGLAS TÉCNICAS:
 2. Cada pregunta debe tener 4 opciones.
 3. Solo una respuesta correcta.
 4. Devuelve ÚNICAMENTE un JSON válido. Cero texto adicional.
+5. El valor de "answer" DEBE ser exactamente el mismo texto de la opción correcta (NO uses "A", "B", "C", etc.).
 
 FORMATO ESPERADO:
 {{
   "questions": [
     {{
-      "question": "Texto de la pregunta",
-      "options": ["A", "B", "C", "D"],
-      "answer": "A"
+      "question": "¿Cuál de estos alimentos es una fruta?",
+      "options": ["Manzana", "Pollo", "Queso", "Pan"],
+      "answer": "Manzana"
     }}
   ]
 }}

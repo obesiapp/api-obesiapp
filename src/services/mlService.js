@@ -2,9 +2,12 @@
 
 const db = require('../config/db');
 
-const ML_SERVICE_URL =
+const ML_SERVICE_URL = (
   process.env.ML_SERVICE_URL ||
-  'http://localhost:8000';
+  'http://localhost:8000'
+).trim().replace(/\/+$/, '');
+
+console.log('[ML] Servicio configurado:', ML_SERVICE_URL);
 
 const createValidationError = (message) => {
   const error = new Error(message);

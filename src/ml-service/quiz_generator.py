@@ -79,11 +79,11 @@ def get_intelligent_fallback(db_session, level: int):
 # ==========================================
 # 3. GENERADOR NÚCLEO (LLM)
 # ==========================================
-def generate_quiz(db_session, child_id: int, age_range: str, level: int):
+# Agregamos 'topic' de vuelta a los parámetros con un valor por defecto
+def generate_quiz(db_session, child_id: int, age_range: str, level: int, topic: str = "Nutrición"):
     config = get_level_config(level)
     recent_questions = get_recent_questions(db_session, child_id)
     
-    # Formatear preguntas previas para el prompt
     avoid_questions_str = "\n".join([f"- {q}" for q in recent_questions])
     
     prompt = f"""
@@ -92,10 +92,11 @@ Genera un quiz educativo de nutrición para niños.
 PERFIL DEL JUGADOR:
 - Edad: {age_range}
 - Nivel actual: {level} / 50
+- Tema general: {topic}
 
 CONFIGURACIÓN DE DIFICULTAD:
 - Dificultad: {config['dificultad']}
-- Temas permitidos: {config['temas']}
+- Subtemas permitidos para este nivel: {config['temas']}
 - Enfoque metodológico: {config['enfoque']}
 
 REGLA ANTI-REPETICIÓN ESTRICTA:
@@ -127,7 +128,7 @@ FORMATO ESPERADO:
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"},
-            timeout=10 # ¡Importante en producción para evitar cuellos de botella!
+            timeout=10
         )
         
         quiz = json.loads(response.choices[0].message.content)

@@ -36,7 +36,7 @@ class RiskInput(BaseModel):
     bmi: float
 
 class QuizRequest(BaseModel):
-    age_range: str
+    age_range: str = "8-12 años"  # <-- Añadimos un valor por defecto
     level: int
     topic: str
     child_id: int | None = None

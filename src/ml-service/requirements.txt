@@ -3,6 +3,6 @@ uvicorn
 pydantic
 joblib
 pandas
-scikit-learn==1.7.2
+scikit-learn==1.9.0
 openai
 python-dotenv

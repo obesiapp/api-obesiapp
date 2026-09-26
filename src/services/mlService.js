@@ -189,26 +189,53 @@ const createHealthMetric = async (childId, data) => {
   };
 
   const response = await fetch(
-    `${ML_SERVICE_URL}/predict-risk`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    }
+  `${ML_SERVICE_URL}/predict-risk`,
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  }
+);
+
+console.log('========== ML DEBUG ==========');
+console.log('ML URL:', `${ML_SERVICE_URL}/predict-risk`);
+console.log('Payload enviado:', payload);
+console.log('Status ML:', response.status);
+console.log('StatusText ML:', response.statusText);
+console.log('response.ok:', response.ok);
+
+const responseText = await response.text();
+
+console.log('Respuesta ML:', responseText);
+console.log('==============================');
+
+if (!response.ok) {
+  const error = new Error(
+    `Error al consultar el modelo de Machine Learning. Status ML: ${response.status}`
   );
 
-  if (!response.ok) {
-    const error = new Error(
-      'Error al consultar el modelo de Machine Learning'
-    );
+  error.status = 500;
+  throw error;
+}
 
-    error.status = 500;
-    throw error;
-  }
+let prediction;
 
-  const prediction = await response.json();
+try {
+  prediction = JSON.parse(responseText);
+} catch (parseError) {
+  console.error('Error parseando respuesta del ML:', parseError);
+
+  const error = new Error(
+    'La respuesta del servicio de Machine Learning no es JSON válido'
+  );
+
+  error.status = 500;
+  throw error;
+}
+
+console.log('Predicción recibida:', prediction);
 
   const { rows } = await db.query(
     `

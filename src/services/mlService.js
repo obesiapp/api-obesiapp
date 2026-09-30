@@ -2,6 +2,8 @@
 
 const db = require('../config/db');
 
+const gameProgressService = require('./gameProgressService');
+
 const ML_SERVICE_URL =
   process.env.ML_SERVICE_URL ||
   'http://localhost:8000';
@@ -306,7 +308,9 @@ const getLatestHealthMetric = async (childId) => {
 // NUEVO QUIZ IA
 // =====================================
 
-const generateQuiz = async (childId, topic) => {
+const generateQuiz = async (childId, topic, level) => {
+  await gameProgressService.checkLevel(childId, level);
+
   const child = await db.query(
     `
     SELECT
@@ -329,7 +333,7 @@ const generateQuiz = async (childId, topic) => {
 
   const payload = {
     age_range: profile.age_range,
-    level: profile.current_level_id,
+level,
     topic
   };
 
@@ -358,54 +362,7 @@ const generateQuiz = async (childId, topic) => {
 // =====================================
 
 const saveQuizResult = async (childId, result) => {
-  const {
-    topic,
-    score,
-    totalQuestions,
-    percentage,
-    xpEarned
-  } = result;
-
-  const { rows } = await db.query(
-    `
-    INSERT INTO healthkids.quiz_attempts (
-      child_id,
-      topic,
-      difficulty,
-      score,
-      total_questions,
-      percentage,
-      xp_earned
-    )
-    VALUES (
-      $1,$2,$3,$4,$5,$6,$7
-    )
-    RETURNING *
-    `,
-    [
-      childId,
-      topic,
-      'dynamic',
-      score,
-      totalQuestions,
-      percentage,
-      xpEarned
-    ]
-  );
-
-  await db.query(
-    `
-    UPDATE healthkids.child_profiles
-    SET current_xp = current_xp + $1
-    WHERE child_id = $2
-    `,
-    [
-      xpEarned,
-      childId
-    ]
-  );
-
-  return rows[0];
+  return gameProgressService.saveResult(childId, result);
 };
 
 // =====================================

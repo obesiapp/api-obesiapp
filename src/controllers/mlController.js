@@ -50,24 +50,23 @@ const getLatestHealthMetric = async (req, res, next) => {
 const generateQuiz = async (req, res, next) => {
   try {
     const { childId } = req.params;
-    const { topic } = req.body;
+    const { topic, level } = req.body;
 
     const result = await mlService.generateQuiz(
       childId,
-      topic
+      topic,
+      level
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       ok: true,
       message: 'Quiz generado correctamente',
       data: result
     });
-
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
-
 // =====================================
 // GUARDAR RESULTADO QUIZ
 // =====================================

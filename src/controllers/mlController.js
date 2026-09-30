@@ -124,8 +124,10 @@ const getDailySummary = async (req, res, next) => {
 
     const { childId } = req.params;
 
-    const result = await mlService.getDailySummary(childId);
-
+    const result = await mlService.getDailySummary(
+      childId,
+      req.query.date
+    );
     res.status(200).json({
       success: true,
       data: result

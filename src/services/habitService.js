@@ -111,16 +111,16 @@ console.log("target:", habit.target_value);
 
   // Total de hábitos completados hoy
   const { rows: [stats] } = await db.query(
-    `
-    SELECT
-      COUNT(*) FILTER (WHERE is_completed = TRUE) AS completed,
-      COUNT(*) AS total
-    FROM habit_logs
-    WHERE child_id = $1
-      AND log_date = $2
-    `,
-    [childId, logDate]
-  );
+  `
+  SELECT
+    COUNT(*) FILTER (WHERE is_completed = TRUE) AS completed,
+    (SELECT COUNT(*) FROM habit_catalog WHERE is_active = TRUE) AS total
+  FROM habit_logs
+  WHERE child_id = $1
+    AND log_date = $2
+  `,
+  [childId, logDate]
+);
 
   // Obtener datos específicos de hábitos del día
 const { rows: habitsToday } = await db.query(

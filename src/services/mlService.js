@@ -443,86 +443,75 @@ const analyzeDailyPattern = async (summaryId, data) => {
   };
 };
 
-const getDailySummary = async (childId) => {
+const getDailySummary = async (childId, date = null) => {
+  if (date !== null) {
+    const parsedDate = new Date(date);
 
-  try{
+    const validDate =
+      /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+      !Number.isNaN(parsedDate.getTime()) &&
+      parsedDate.toISOString().slice(0, 10) === date;
 
-    let { rows } = await db.query(
-      `
-      SELECT *
-      FROM healthkids.daily_summary
-      WHERE child_id = $1
-      AND summary_date = CURRENT_DATE
-      LIMIT 1
-      `,
-      [childId]
-    );
-
-    // Si no existe el resumen del día, se crea automáticamente
-    if(rows.length === 0){
-
-      await db.query(
-        `
-        INSERT INTO healthkids.daily_summary
-        (
-          child_id,
-          summary_date,
-          xp_gained,
-          challenges_completed,
-          habits_completed,
-          habits_total,
-          screen_time_minutes,
-          screen_limit_exceeded,
-          streak_days_at_date,
-          computed_at,
-          water_intake,
-          physical_activity_minutes,
-          junk_food_portions,
-          ml_cluster_id
-        )
-        VALUES
-        (
-          $1,
-          CURRENT_DATE,
-          0,
-          0,
-          0,
-          0,
-          0,
-          false,
-          0,
-          NOW(),
-          0,
-          0,
-          0,
-          NULL
-        )
-        `,
-        [childId]
+    if (!validDate) {
+      throw createValidationError(
+        'Fecha inválida. Usa el formato YYYY-MM-DD.'
       );
-
-      ({rows} = await db.query(
-        `
-        SELECT *
-        FROM healthkids.daily_summary
-        WHERE child_id = $1
-        AND summary_date = CURRENT_DATE
-        LIMIT 1
-        `,
-        [childId]
-      ));
-
     }
-
-    return rows[0];
-
-  }catch(error){
-
-    console.error("Error en getDailySummary:", error);
-    throw error;
-
   }
 
+  // Crear el resumen si todavía no existe para esa fecha.
+  // Evitar duplicados si llegan consultas simultáneas.
+  await db.query(
+    `
+    INSERT INTO healthkids.daily_summary (
+      child_id,
+      summary_date,
+      xp_gained,
+      challenges_completed,
+      habits_completed,
+      habits_total,
+      screen_time_minutes,
+      screen_limit_exceeded,
+      streak_days_at_date,
+      computed_at,
+      water_intake,
+      physical_activity_minutes,
+      junk_food_portions,
+      ml_cluster_id
+    )
+    VALUES (
+      $1,
+      COALESCE($2::date, CURRENT_DATE),
+      0,
+      0,
+      0,
+      0,
+      0,
+      false,
+      0,
+      NOW(),
+      0,
+      0,
+      0,
+      NULL
+    )
+    ON CONFLICT (child_id, summary_date) DO NOTHING
+    `,
+    [childId, date]
+  );
+
+  const { rows } = await db.query(
+    `
+    SELECT *
+    FROM healthkids.daily_summary
+    WHERE child_id = $1
+      AND summary_date = COALESCE($2::date, CURRENT_DATE)
+    LIMIT 1
+    `,
+    [childId, date]
+  );
+
+  return rows[0];
 };
 
 // =====================================
